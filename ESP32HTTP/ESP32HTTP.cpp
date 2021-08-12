@@ -70,8 +70,8 @@ void HTTPRequest::removeHeaders(){
 //-------------------------------------------------------------------------
 HTTPResponse::HTTPResponse(unsigned int newHttpResponseCode, String newHeaders, String newHttpResponseData){
 	httpResponseData = newHttpResponseData;
-  	httpResponseCode = newHttpResponseCode;
-  	httpResponseHeaders = newHeaders;
+	httpResponseCode = newHttpResponseCode;
+	httpResponseHeaders = newHeaders;
 }
 
 HTTPResponse::~HTTPResponse() {
@@ -95,18 +95,20 @@ HTTP::HTTP(char* newHost, unsigned int newPort, bool logger){
 	port = newPort;
 
 	log = logger;
-	if(log){
-		Serial.begin(115200);
-		Serial.println("HTTP.h: HTTP.h log mode enabled");
-
-		Serial.print("HTTP.h: host -> ");
-		Serial.println(host);
-		Serial.print("HTTP.h: port -> ");
-		Serial.println(port);
-	}
 }
 
 HTTP::~HTTP() {
+}
+
+void HTTP::begin(){	
+	if(log){
+		Serial.println("HTTP.h> HTTP.h log mode enabled");
+
+		Serial.print("HTTP.h> host -> ");
+		Serial.println(host);
+		Serial.print("HTTP.h> port -> ");
+		Serial.println(port);
+	}
 }
 
 char* HTTP::getHost(){
@@ -146,40 +148,58 @@ HTTPResponse HTTP::sendRequest(){
 			Serial.println("HTTP.h: Connected to server");
 		}
 
-		String data = httpRequest.getMethod() + " " + httpRequest.getResource() + " HTTP/1.1\r\n";
+		String data = httpsRequest.getMethod() + " " + httpsRequest.getResource() + " HTTP/1.1\r\n";
 		data += "Host: " + getStringHost() + ":" + (String)port + "\r\n";
-		data += "Content-Length: " + (String)httpRequest.getPayload().length() + "\r\n";
-		data += httpRequest.getRequestHeaders();
+		data += "Content-Length: " + (String)httpsRequest.getPayload().length() + "\r\n";
+		data += httpsRequest.getRequestHeaders();
 		data += "\r\n";
-		data += httpRequest.getPayload();
+		data += httpsRequest.getPayload();
 
 		if(log){
-			Serial.println("HTTP.h: Request -> ");
+			Serial.println("HTTP.h: Request:");
 			Serial.println(data);
 		}
 
 		client.print(data);
 
 		
-		String firstLine = client.readStringUntil('\n');
 		String responseHeaders = "";
 		String payload = "";
+		String firstLine = "";
 
-		unsigned int code;
+		bool firstLineReaded = false;
+		uint16_t cont = 0;
+		while(client.connected() && firstLineReaded == false && cont < 10000){
+			firstLine = client.readStringUntil('\n');
+			if(firstLine.length() > 5){
+				firstLineReaded = true;
+			} else {
+				cont++;
+			}
 
+		}
 
-		for(int i = 0; i < firstLine.length(); i++){
-			if(firstLine[i] == ' '){
-				code = 100*utilCharToInt(firstLine[i+1]);
-				code += 10*utilCharToInt(firstLine[i+2]);
-				code += utilCharToInt(firstLine[i+3]);
-
-				break;
+		if(cont >= 10000){
+			if(log){
+				Serial.println("HTTP.h> ERROR READING FIRST LINE.");
 			}
 		}
 
+		if(log){
+			Serial.println("HTTP.h: Response");
+			Serial.print("HTTP.h> Firstline -> ");
+			Serial.println(firstLine);
+		}
+
+		unsigned int code;
+		String codeString = firstLine;
+		codeString.replace("HTTP/1.1 ", "");
+		code = 100*utilCharToInt(codeString.charAt(0));
+		code += 10*utilCharToInt(codeString.charAt(1));
+		code += utilCharToInt(codeString.charAt(2));
+
 		int PayloadSize = client.available();
-		
+
 		while (client.connected()){
 			String line = client.readStringUntil('\n');
 
@@ -195,19 +215,18 @@ HTTPResponse HTTP::sendRequest(){
 		}
 
 		if(log){
-			Serial.print("HTTP.h: PayloadSize -> ");
-			Serial.println(PayloadSize);
-			Serial.print("HTTP.h: ResponseCode -> ");
+			Serial.print("HTTP.h> ResponseCode -> ");
 			Serial.println(code);
-			Serial.print("HTTP.h: ResponseHeaders -> ");
+			Serial.println("HTTP.h> ResponseHeaders:");
 			Serial.println(responseHeaders);
-			
-			Serial.print("HTTP.h: ResponsePayload -> ");
+			Serial.print("HTTP.h> PayloadSize -> ");
+			Serial.println(PayloadSize);
+			Serial.print("HTTP.h> ResponsePayload -> ");
 			Serial.println(payload);
 		}
 
 		res = HTTPResponse(code, responseHeaders, payload);
-		httpResponse = res;
+		httpsResponse = res;
 	} else if(log){
 		Serial.println("HTTP.h: Cannot connect to server.");
 	}
@@ -233,33 +252,52 @@ HTTPResponse HTTP::sendRequest(HTTPRequest request){
 		data += request.getPayload();
 
 		if(log){
-			Serial.println("HTTP.h: Request -> ");
+			Serial.println("HTTP.h: Request:");
 			Serial.println(data);
 		}
 
 		client.print(data);
 
-		
-		String firstLine = client.readStringUntil('\n');
 		String responseHeaders = "";
 		String payload = "";
+		String firstLine = "";
 
-		unsigned int code;
+		bool firstLineReaded = false;
+		uint16_t cont = 0;
+		while(client.connected() && firstLineReaded == false && cont < 10000){
+			firstLine = client.readStringUntil('\n');
+			if(firstLine.length() > 5){
+				firstLineReaded = true;
+			} else {
+				cont++;
+			}
 
-		int PayloadSize = client.available();
+		}
 
-		for(int i = 0; i < firstLine.length(); i++){
-			if(firstLine[i] == ' '){
-				code = 100*utilCharToInt(firstLine[i+1]);
-				code += 10*utilCharToInt(firstLine[i+2]);
-				code += utilCharToInt(firstLine[i+3]);
-
-				break;
+		if(cont >= 10000){
+			if(log){
+				Serial.println("HTTP.h> ERROR READING FIRST LINE.");
 			}
 		}
 
+		if(log){
+			Serial.println("HTTP.h: Response");
+			Serial.print("HTTP.h> Firstline -> ");
+			Serial.println(firstLine);
+		}
+
+		unsigned int code;
+		String codeString = firstLine;
+		codeString.replace("HTTP/1.1 ", "");
+		code = 100*utilCharToInt(codeString.charAt(0));
+		code += 10*utilCharToInt(codeString.charAt(1));
+		code += utilCharToInt(codeString.charAt(2));
+
+		int PayloadSize = client.available();
+		
 		while (client.connected()){
 			String line = client.readStringUntil('\n');
+
 
 			if(line == "\r"){
 		    	while (client.available()) {
@@ -273,17 +311,19 @@ HTTPResponse HTTP::sendRequest(HTTPRequest request){
 		}
 
 		if(log){
-			Serial.print("HTTP.h: ResponseCode -> ");
-			Serial.println(code);
-			Serial.print("HTTP.h: ResponseHeaders -> ");
-			Serial.println(responseHeaders);
 			
-			Serial.print("HTTP.h: ResponsePayload -> ");
+			Serial.print("HTTP.h> ResponseCode -> ");
+			Serial.println(code);
+			Serial.println("HTTP.h> ResponseHeaders:");
+			Serial.println(responseHeaders);
+			Serial.print("HTTP.h> PayloadSize -> ");
+			Serial.println(PayloadSize);			
+			Serial.print("HTTP.h> ResponsePayload -> ");
 			Serial.println(payload);
 		}
 
 		res = HTTPResponse(code, responseHeaders, payload);
-		httpResponse = res;
+		httpsResponse = res;
 	} else if(log){
 		Serial.println("HTTP.h: Cannot connect to server.");
 	}

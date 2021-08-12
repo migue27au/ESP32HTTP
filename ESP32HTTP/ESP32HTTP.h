@@ -29,6 +29,7 @@
 #define HTTP_RESPONSE_UNAUTHORIZED 401
 #define HTTP_RESPONSE_FORBIDDEN 403
 #define HTTP_RESPONSE_METHOD_NOT_ALLOWED 405
+#define HTTP_RESPONSE_CONFLICT 409
 #define HTTP_RESPONSE_UNSUPPORTED_MEDIA_TYPE 415
 #define HTTP_RESPONSE_INTERNAL_SERVER_ERROR 500
 #define HTTP_RESPONSE_NOT_IMPLEMENTED 501
@@ -58,7 +59,7 @@ public:
 	void setPayload(String payload);
 	String getPayload();
 
-	//to specify a new header
+	//to specify a new header. IMPORTANT --> Content-Length header is added automatically
 	void setHeader(String headerName, String headerValue);
 
 	//to remove all headers
@@ -106,6 +107,7 @@ public:
 	~HTTP();
 
 
+	void begin();	
 	char* getHost();
 	String getStringHost();
 	
