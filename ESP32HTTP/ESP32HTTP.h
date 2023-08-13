@@ -1,8 +1,8 @@
 /*
 *	Author: Migue27au --> https://github.com/migue27au
-*	Last Update: 18/02/2021
+*	Last Update: 07/08/2023
 *
-*	Library to handle easier the HTTP conecctions between ESP32 and server
+*	Library to handle easier the HTTP and HTTPS conecctions between ESP32 and server
 */
 #ifndef ESP32HTTP_H
 #define ESP32HTTP_H
@@ -10,6 +10,7 @@
 #include "Arduino.h"
 #include <string.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 
 
 #define HTTP_POST "POST"
@@ -22,6 +23,7 @@
 #define HTTP_RESPONSE_OK 200
 #define HTTP_RESPONSE_CREATED 201
 #define HTTP_RESPONSE_ACCEPTED 202
+#define HTTP_RESPONSE_PARTIAL_CONTENT 206
 #define HTTP_RESPONSE_MULTIPLE_CHOICE 300
 #define HTTP_RESPONSE_MOVED_PERMANENTLY 301
 #define HTTP_RESPONSE_FOUND 302
@@ -41,6 +43,8 @@
 
 #define HTTPS_PORT 443
 #define HTTP_PORT 80
+
+#define TIMEOUT_SECONDS 10
 
 /*
 * Class to handle https requests 
@@ -104,39 +108,55 @@ private:
 class HTTP{
 public:
 	HTTP(char* newHost, unsigned int newPort, bool logger = false);
+	HTTP(char* newHost, unsigned int newPort, char* newRootCACert, bool logger = false);
 	~HTTP();
 
 
-	void begin();	
+	void begin();
+
+	//return the host IP or domain
 	char* getHost();
+
+	//return the host IP or domain in string object
 	String getStringHost();
 	
+	//return the server port
 	unsigned int getPort();
 
+	//set a specified HTTPRequest object
 	void setRequest(HTTPRequest req);
+	//return the HTTPRequest object
 	HTTPRequest getRequest();
 
+	//return the HTTPResponse object
 	HTTPResponse getResponse();
 
+	//return WiFiClient object
 	WiFiClient getWifiClient();
+	
+	//return WiFiClientSecure object
+	WiFiClientSecure getWifiClientSecure();
 
+	//Send the specified HTTPSREQUEST to host and return the HTTPResponse object for this request
 	HTTPResponse sendRequest();
 
+	//Set and send a specified HTTPREQUEST to host and return the HTTPResponse object for this request
 	HTTPResponse sendRequest(HTTPRequest request);
-
-	
 
 private:
 	bool log;
+	bool isSSL = false;
 
 	WiFiClient client;
+	WiFiClientSecure clientSecure;
 
 	HTTPRequest httpRequest;
 	HTTPResponse httpResponse;
 
 
 	char* host;
-	unsigned int port;  
+	unsigned int port;
+	char* rootCACert;
 };
 
 

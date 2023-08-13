@@ -93,8 +93,20 @@ unsigned int HTTPResponse::getResponseCode(){
 HTTP::HTTP(char* newHost, unsigned int newPort, bool logger){
 	host = newHost;
 	port = newPort;
+	isSSL = false;
+	log = logger;
+}
+
+HTTP::HTTP(char* newHost, unsigned int newPort, char* newRootCACert, bool logger){
+	host = newHost;
+	port = newPort;
+	rootCACert = newRootCACert;
+
+	isSSL = true;
+	clientSecure.setCACert(rootCACert);
 
 	log = logger;
+	
 }
 
 HTTP::~HTTP() {
@@ -109,6 +121,9 @@ void HTTP::begin(){
 		Serial.print("HTTP.h> port -> ");
 		Serial.println(port);
 	}
+
+	client.setTimeout(TIMEOUT_SECONDS);
+	clientSecure.setTimeout(TIMEOUT_SECONDS);
 }
 
 char* HTTP::getHost(){
@@ -139,21 +154,25 @@ WiFiClient HTTP::getWifiClient(){
 	return client;
 }
 
+WiFiClientSecure HTTP::getWifiClientSecure(){
+	return clientSecure;
+}
+
 HTTPResponse HTTP::sendRequest(){
 
 	HTTPResponse res;
 
-	if(client.connect(host, port)){
+	if(isSSL == false && client.connect(host, port)){
 		if(log){
 			Serial.println("HTTP.h: Connected to server");
 		}
 
-		String data = httpsRequest.getMethod() + " " + httpsRequest.getResource() + " HTTP/1.1\r\n";
+		String data = httpRequest.getMethod() + " " + httpRequest.getResource() + " HTTP/1.1\r\n";
 		data += "Host: " + getStringHost() + ":" + (String)port + "\r\n";
-		data += "Content-Length: " + (String)httpsRequest.getPayload().length() + "\r\n";
-		data += httpsRequest.getRequestHeaders();
+		data += "Content-Length: " + (String)httpRequest.getPayload().length() + "\r\n";
+		data += httpRequest.getRequestHeaders();
 		data += "\r\n";
-		data += httpsRequest.getPayload();
+		data += httpRequest.getPayload();
 
 		if(log){
 			Serial.println("HTTP.h: Request:");
@@ -226,46 +245,35 @@ HTTPResponse HTTP::sendRequest(){
 		}
 
 		res = HTTPResponse(code, responseHeaders, payload);
-		httpsResponse = res;
-	} else if(log){
-		Serial.println("HTTP.h: Cannot connect to server.");
-	}
-
-	client.stop();
-
-	return res;
-}
-
-
-HTTPResponse HTTP::sendRequest(HTTPRequest request){
-	HTTPResponse res;
-
-	if(client.connect(host, port)){
+		httpResponse = res;
+	} else if(isSSL == true && clientSecure.connect(host, port)){
 		if(log){
 			Serial.println("HTTP.h: Connected to server");
 		}
-		String data = request.getMethod() + " " + request.getResource() + " HTTP/1.1\r\n";
+
+		String data = httpRequest.getMethod() + " " + httpRequest.getResource() + " HTTP/1.1\r\n";
 		data += "Host: " + getStringHost() + ":" + (String)port + "\r\n";
-		data += "Content-Length: " + (String)request.getPayload().length() + "\r\n";
-		data += request.getRequestHeaders();
+		data += "Content-Length: " + (String)httpRequest.getPayload().length() + "\r\n";
+		data += httpRequest.getRequestHeaders();
 		data += "\r\n";
-		data += request.getPayload();
+		data += httpRequest.getPayload();
 
 		if(log){
 			Serial.println("HTTP.h: Request:");
 			Serial.println(data);
 		}
 
-		client.print(data);
+		clientSecure.print(data);
 
+		
 		String responseHeaders = "";
 		String payload = "";
 		String firstLine = "";
 
 		bool firstLineReaded = false;
 		uint16_t cont = 0;
-		while(client.connected() && firstLineReaded == false && cont < 10000){
-			firstLine = client.readStringUntil('\n');
+		while(clientSecure.connected() && firstLineReaded == false && cont < 10000){
+			firstLine = clientSecure.readStringUntil('\n');
 			if(firstLine.length() > 5){
 				firstLineReaded = true;
 			} else {
@@ -293,15 +301,14 @@ HTTPResponse HTTP::sendRequest(HTTPRequest request){
 		code += 10*utilCharToInt(codeString.charAt(1));
 		code += utilCharToInt(codeString.charAt(2));
 
-		int PayloadSize = client.available();
-		
-		while (client.connected()){
-			String line = client.readStringUntil('\n');
+		int PayloadSize = clientSecure.available();
 
+		while (clientSecure.connected()){
+			String line = clientSecure.readStringUntil('\n');
 
 			if(line == "\r"){
-		    	while (client.available()) {
-		    		char c = client.read();
+		    	while (clientSecure.available()) {
+		    		char c = clientSecure.read();
 			    	payload += String(c);
 			    }
 				break;
@@ -311,24 +318,194 @@ HTTPResponse HTTP::sendRequest(HTTPRequest request){
 		}
 
 		if(log){
-			
 			Serial.print("HTTP.h> ResponseCode -> ");
 			Serial.println(code);
 			Serial.println("HTTP.h> ResponseHeaders:");
 			Serial.println(responseHeaders);
 			Serial.print("HTTP.h> PayloadSize -> ");
-			Serial.println(PayloadSize);			
+			Serial.println(PayloadSize);
 			Serial.print("HTTP.h> ResponsePayload -> ");
 			Serial.println(payload);
 		}
 
 		res = HTTPResponse(code, responseHeaders, payload);
-		httpsResponse = res;
-	} else if(log){
+		httpResponse = res;
+	}	else if(log){
 		Serial.println("HTTP.h: Cannot connect to server.");
 	}
 
 	client.stop();
+	clientSecure.stop();
+
+	return res;
+}
+
+
+HTTPResponse HTTP::sendRequest(HTTPRequest request){
+	HTTPResponse res;
+
+	if(isSSL == false && client.connect(host, port)){
+		if(log){
+			Serial.println("HTTP.h: Connected to server");
+		}
+		String data = request.getMethod() + " " + request.getResource() + " HTTP/1.1\r\n";
+		data += "Host: " + getStringHost() + ":" + (String)port + "\r\n";
+		data += "Content-Length: " + (String)request.getPayload().length() + "\r\n";
+		data += request.getRequestHeaders();
+		data += "\r\n";
+		data += request.getPayload();
+
+		if(log){
+			Serial.println("HTTP.h: Request:");
+			Serial.println(data);
+		}
+
+		client.print(data);
+
+		String responseHeaders = "";
+		String payload = "";
+		String firstLine = "";
+
+		bool firstLineReaded = false;
+		uint16_t cont = 0;
+		while(client.connected() && firstLineReaded == false && cont < 10000){
+			firstLine = client.readStringUntil('\n');
+			if(firstLine.length() > 5){
+				firstLineReaded = true;
+				Serial.println("Firstline readed");
+			} else {
+				cont++;
+			}
+
+			if(cont >= 10000){
+				if(log){
+					Serial.println("HTTP.h> ERROR READING FIRST LINE.");
+				}
+			}
+		}
+
+		while (client.available()) {
+				String line = client.readStringUntil('\n');
+				Serial.println(line);
+				if(line == "\r"){
+		    	while (client.available()) {
+		    		char c = client.read();
+			    	payload += String(c);
+			    }
+					break;
+				} else {
+					responseHeaders += line + "\n";
+				}
+			}
+
+		unsigned int code;
+		String codeString = firstLine.substring(firstLine.indexOf(" ")+1, firstLine.lastIndexOf(" "));
+
+		code = 100*utilCharToInt(codeString.charAt(0));
+		code += 10*utilCharToInt(codeString.charAt(1));
+		code += utilCharToInt(codeString.charAt(2));
+
+		int payloadSize = payload.length();
+		
+		if(log){
+			Serial.println("HTTP.h: Response");
+			Serial.print("HTTP.h> Firstline -> ");
+			Serial.println(firstLine);
+			Serial.print("HTTP.h> ResponseCode -> ");
+			Serial.println(code);
+			Serial.println("HTTP.h> ResponseHeaders:");
+			Serial.println(responseHeaders);
+			Serial.print("HTTP.h> PayloadSize -> ");
+			Serial.println(payloadSize);			
+			Serial.print("HTTP.h> ResponsePayload -> ");
+			Serial.println(payload);
+		}
+
+		res = HTTPResponse(code, responseHeaders, payload);
+	} else if(isSSL == true && clientSecure.connect(host, port)){
+		if(log){
+			Serial.println("HTTP.h: Connected to server");
+		}
+		String data = request.getMethod() + " " + request.getResource() + " HTTP/1.1\r\n";
+		data += "Host: " + getStringHost() + ":" + (String)port + "\r\n";
+		data += "Content-Length: " + (String)request.getPayload().length() + "\r\n";
+		data += request.getRequestHeaders();
+		data += "\r\n";
+		data += request.getPayload();
+
+		if(log){
+			Serial.println("HTTP.h: Request:");
+			Serial.println(data);
+		}
+
+		clientSecure.print(data);
+
+		String responseHeaders = "";
+		String payload = "";
+		String firstLine = "";
+
+		bool firstLineReaded = false;
+		uint16_t cont = 0;
+		while(clientSecure.connected() && firstLineReaded == false && cont < 10000){
+			firstLine = clientSecure.readStringUntil('\n');
+			if(firstLine.length() > 5){
+				firstLineReaded = true;
+				Serial.println("Firstline readed");
+			} else {
+				cont++;
+			}
+
+			if(cont >= 10000){
+				if(log){
+					Serial.println("HTTP.h> ERROR READING FIRST LINE.");
+				}
+			}
+		}
+
+		while (clientSecure.available()) {
+				String line = clientSecure.readStringUntil('\n');
+				Serial.println(line);
+				if(line == "\r"){
+		    	while (clientSecure.available()) {
+		    		char c = clientSecure.read();
+			    	payload += String(c);
+			    }
+					break;
+				} else {
+					responseHeaders += line + "\n";
+				}
+			}
+
+		unsigned int code;
+		String codeString = firstLine.substring(firstLine.indexOf(" ")+1, firstLine.lastIndexOf(" "));
+
+		code = 100*utilCharToInt(codeString.charAt(0));
+		code += 10*utilCharToInt(codeString.charAt(1));
+		code += utilCharToInt(codeString.charAt(2));
+
+		int payloadSize = payload.length();
+		
+		if(log){
+			Serial.println("HTTP.h: Response");
+			Serial.print("HTTP.h> Firstline -> ");
+			Serial.println(firstLine);
+			Serial.print("HTTP.h> ResponseCode -> ");
+			Serial.println(code);
+			Serial.println("HTTP.h> ResponseHeaders:");
+			Serial.println(responseHeaders);
+			Serial.print("HTTP.h> PayloadSize -> ");
+			Serial.println(payloadSize);			
+			Serial.print("HTTP.h> ResponsePayload -> ");
+			Serial.println(payload);
+		}
+
+		res = HTTPResponse(code, responseHeaders, payload);
+	}	else if(log){
+		Serial.println("HTTP.h: Cannot connect to server.");
+	}
+
+	client.stop();
+	clientSecure.stop();		
 
 	return res;	
 }
