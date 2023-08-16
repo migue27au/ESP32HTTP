@@ -107,10 +107,14 @@ private:
 */
 class HTTP{
 public:
+	HTTP();
 	HTTP(char* newHost, unsigned int newPort, bool logger = false);
 	HTTP(char* newHost, unsigned int newPort, char* newRootCACert, bool logger = false);
 	~HTTP();
 
+
+	void setValues(char* newHost, unsigned int newPort, bool logger = false);
+	void setValues(char* newHost, unsigned int newPort, char* newRootCACert, bool logger = false);
 
 	void begin();
 

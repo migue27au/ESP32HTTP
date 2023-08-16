@@ -90,6 +90,8 @@ unsigned int HTTPResponse::getResponseCode(){
 }
 
 //-------------------------------------------------------------------------
+HTTP::HTTP(){}
+
 HTTP::HTTP(char* newHost, unsigned int newPort, bool logger){
 	host = newHost;
 	port = newPort;
@@ -111,6 +113,25 @@ HTTP::HTTP(char* newHost, unsigned int newPort, char* newRootCACert, bool logger
 
 HTTP::~HTTP() {
 }
+
+void HTTP::setValues(char* newHost, unsigned int newPort, bool logger){
+	host = newHost;
+	port = newPort;
+	isSSL = false;
+	log = logger;
+}
+
+void HTTP::setValues(char* newHost, unsigned int newPort, char* newRootCACert, bool logger){
+	host = newHost;
+	port = newPort;
+	rootCACert = newRootCACert;
+
+	isSSL = true;
+	clientSecure.setCACert(rootCACert);
+
+	log = logger;
+}
+
 
 void HTTP::begin(){	
 	if(log){
